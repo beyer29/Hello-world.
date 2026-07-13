@@ -9,6 +9,7 @@ import ModuleListScreen from "@/screens/ModuleListScreen";
 import ModuleDetailScreen from "@/screens/ModuleDetailScreen";
 import BackupRestoreScreen from "@/screens/BackupRestoreScreen";
 import FlashScreen from "@/screens/FlashScreen";
+import DiagnosticsScreen from "@/screens/DiagnosticsScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 
 export type ModulesStackParamList = {
@@ -18,6 +19,7 @@ export type ModulesStackParamList = {
 };
 
 export type RootTabParamList = {
+  DiagnosticsTab: undefined;
   ModulesTab: undefined;
   BackupsTab: undefined;
   SettingsTab: undefined;
@@ -48,6 +50,11 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
+      <Tab.Screen
+        name="DiagnosticsTab"
+        component={DiagnosticsScreen}
+        options={{ title: "Diagnostics" }}
+      />
       <Tab.Screen
         name="ModulesTab"
         component={ModulesStackNavigator}

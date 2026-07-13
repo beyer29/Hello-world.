@@ -12,6 +12,43 @@ import {
   SampleFlashPackage,
 } from "@/types";
 
+function stagePackages(moduleCode: string): SampleFlashPackage[] {
+  return [
+    {
+      id: `${moduleCode.toLowerCase()}-demo-stage1-v1`,
+      moduleCode,
+      name: "Stage 1 (simulated)",
+      description:
+        "Illustrative only. Conceptually: a software-only remap for otherwise-stock " +
+        "hardware, raising torque/power within the stock turbo and fuel system's " +
+        "margin - no hardware changes assumed. Not a real calibrated tune; real Stage " +
+        "1 maps are dyno-derived per engine/hardware combo by a tuner.",
+      source: "sample",
+    },
+    {
+      id: `${moduleCode.toLowerCase()}-demo-stage2-v1`,
+      moduleCode,
+      name: "Stage 2 (simulated)",
+      description:
+        "Illustrative only. Conceptually: a remap paired with supporting hardware " +
+        "(e.g. intake, downpipe/exhaust, intercooler) that raises boost/airflow limits " +
+        "beyond what Stage 1 assumes. Not a real calibrated tune.",
+      source: "sample",
+    },
+    {
+      id: `${moduleCode.toLowerCase()}-demo-stage3-v1`,
+      moduleCode,
+      name: "Stage 3 (simulated)",
+      description:
+        "Illustrative only. Conceptually: a heavily reworked map paired with major " +
+        "hardware changes (upgraded turbo(s), fuel system, sometimes internals). Not a " +
+        "real calibrated tune - real Stage 3 packages require a tuner to calibrate " +
+        "against the exact hardware installed, on a dyno, to avoid engine damage.",
+      source: "sample",
+    },
+  ];
+}
+
 const SAMPLE_PACKAGES: Record<string, SampleFlashPackage[]> = {
   EGS: [
     {
@@ -23,40 +60,9 @@ const SAMPLE_PACKAGES: Record<string, SampleFlashPackage[]> = {
       source: "sample",
     },
   ],
-  DME: [
-    {
-      id: "dme-demo-stage1-v1",
-      moduleCode: "DME",
-      name: "Stage 1 (simulated)",
-      description:
-        "Illustrative only. Conceptually: a software-only remap for otherwise-stock " +
-        "hardware, raising torque/power within the stock turbo and fuel system's " +
-        "margin - no hardware changes assumed. Not a real calibrated tune; real Stage " +
-        "1 maps are dyno-derived per engine/hardware combo by a tuner.",
-      source: "sample",
-    },
-    {
-      id: "dme-demo-stage2-v1",
-      moduleCode: "DME",
-      name: "Stage 2 (simulated)",
-      description:
-        "Illustrative only. Conceptually: a remap paired with supporting hardware " +
-        "(e.g. intake, downpipe/exhaust, intercooler) that raises boost/airflow limits " +
-        "beyond what Stage 1 assumes. Not a real calibrated tune.",
-      source: "sample",
-    },
-    {
-      id: "dme-demo-stage3-v1",
-      moduleCode: "DME",
-      name: "Stage 3 (simulated)",
-      description:
-        "Illustrative only. Conceptually: a heavily reworked map paired with major " +
-        "hardware changes (upgraded turbo(s), fuel system, sometimes internals). Not a " +
-        "real calibrated tune - real Stage 3 packages require a tuner to calibrate " +
-        "against the exact hardware installed, on a dyno, to avoid engine damage.",
-      source: "sample",
-    },
-  ],
+  DME: stagePackages("DME"),
+  ECU: stagePackages("ECU"),
+  ME: stagePackages("ME"),
 };
 
 const IMPORTED_STORAGE_KEY = "bimmercoder:importedTunes";

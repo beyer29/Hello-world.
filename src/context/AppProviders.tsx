@@ -13,11 +13,14 @@ import {
   CodingService,
   ConnectedVehicle,
   ControlModule,
+  DiagnosticScanResult,
+  DiagnosticsService,
   FlashJob,
   FlashPackage,
   FlashService,
   FlashStepResult,
   ImportedFlashPackage,
+  LiveDataReading,
   ObdAdapter,
   ObdConnectionState,
   ObdDeviceInfo,
@@ -28,12 +31,14 @@ import { decodeVin } from "@/services/vin";
 import { SampleCodingService } from "@/services/coding";
 import { AsyncStorageBackupService } from "@/services/backup";
 import { SimulatedFlashService } from "@/services/flash";
+import { Obd2DiagnosticsService } from "@/services/diagnostics";
 
 interface Services {
   obd: ObdAdapter;
   coding: CodingService;
   backup: BackupService;
   flash: FlashService;
+  diagnostics: DiagnosticsService;
 }
 
 const ServicesContext = createContext<Services | null>(null);
@@ -119,14 +124,35 @@ export function useFlash(): FlashContextValue {
   return ctx;
 }
 
+interface DiagnosticsContextValue {
+  scanResult: DiagnosticScanResult | null;
+  scanning: boolean;
+  liveData: LiveDataReading[];
+  liveDataActive: boolean;
+  scanForCodes: () => Promise<void>;
+  clearCodes: () => Promise<void>;
+  startLiveData: () => void;
+  stopLiveData: () => void;
+}
+
+const DiagnosticsContext = createContext<DiagnosticsContextValue | null>(null);
+
+export function useDiagnostics(): DiagnosticsContextValue {
+  const ctx = useContext(DiagnosticsContext);
+  if (!ctx) throw new Error("useDiagnostics must be used within AppProviders");
+  return ctx;
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const servicesRef = useRef<Services | null>(null);
   if (!servicesRef.current) {
+    const obd = createObdAdapter();
     servicesRef.current = {
-      obd: createObdAdapter(),
+      obd,
       coding: new SampleCodingService(),
       backup: new AsyncStorageBackupService(),
       flash: new SimulatedFlashService(),
+      diagnostics: new Obd2DiagnosticsService(obd),
     };
   }
   const services = servicesRef.current;
@@ -212,6 +238,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     setVehicleState({ vehicle: null, connectionState: "disconnected", discoveredDevices: [], error: null });
     setModules([]);
     setBackups([]);
+    setScanResult(null);
+    setLiveData([]);
+    setLiveDataActive(false);
+    if (liveDataIntervalRef.current) {
+      clearInterval(liveDataIntervalRef.current);
+      liveDataIntervalRef.current = null;
+    }
   }, [services]);
 
   const updateOption = useCallback(
@@ -316,12 +349,79 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     [activeJob, flashProgress, listPackages, importPackage, deleteImportedPackage, startFlash, abort]
   );
 
+  const [scanResult, setScanResult] = useState<DiagnosticScanResult | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [liveData, setLiveData] = useState<LiveDataReading[]>([]);
+  const [liveDataActive, setLiveDataActive] = useState(false);
+  const liveDataIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const scanForCodes = useCallback(async () => {
+    setScanning(true);
+    try {
+      setScanResult(await services.diagnostics.scanForCodes());
+    } finally {
+      setScanning(false);
+    }
+  }, [services]);
+
+  const clearCodes = useCallback(async () => {
+    await services.diagnostics.clearCodes();
+    setScanResult(null);
+  }, [services]);
+
+  const pollLiveData = useCallback(async () => {
+    try {
+      setLiveData(await services.diagnostics.readLiveData());
+    } catch {
+      // A transient read error shouldn't kill the polling loop.
+    }
+  }, [services]);
+
+  const startLiveData = useCallback(() => {
+    if (liveDataIntervalRef.current) return;
+    setLiveDataActive(true);
+    pollLiveData();
+    liveDataIntervalRef.current = setInterval(pollLiveData, 1500);
+  }, [pollLiveData]);
+
+  const stopLiveData = useCallback(() => {
+    if (liveDataIntervalRef.current) {
+      clearInterval(liveDataIntervalRef.current);
+      liveDataIntervalRef.current = null;
+    }
+    setLiveDataActive(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (liveDataIntervalRef.current) clearInterval(liveDataIntervalRef.current);
+    };
+  }, []);
+
+  const diagnosticsValue = useMemo<DiagnosticsContextValue>(
+    () => ({
+      scanResult,
+      scanning,
+      liveData,
+      liveDataActive,
+      scanForCodes,
+      clearCodes,
+      startLiveData,
+      stopLiveData,
+    }),
+    [scanResult, scanning, liveData, liveDataActive, scanForCodes, clearCodes, startLiveData, stopLiveData]
+  );
+
   return (
     <ServicesContext.Provider value={services}>
       <VehicleContext.Provider value={vehicleValue}>
         <ModulesContext.Provider value={modulesValue}>
           <BackupsContext.Provider value={backupsValue}>
-            <FlashContext.Provider value={flashValue}>{children}</FlashContext.Provider>
+            <FlashContext.Provider value={flashValue}>
+              <DiagnosticsContext.Provider value={diagnosticsValue}>
+                {children}
+              </DiagnosticsContext.Provider>
+            </FlashContext.Provider>
           </BackupsContext.Provider>
         </ModulesContext.Provider>
       </VehicleContext.Provider>

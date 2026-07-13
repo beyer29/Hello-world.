@@ -24,6 +24,7 @@ const CATEGORY_LABELS: Record<ModuleCategory, string> = {
   transmission: "Transmission",
   engine: "Engine",
   comfort: "Comfort",
+  security: "Security",
   other: "Other",
 };
 

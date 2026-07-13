@@ -1,4 +1,5 @@
 import { CodingBackup, CodingSnapshotEntry } from "./backup";
+import { DiagnosticScanResult, LiveDataReading } from "./diagnostics";
 import { FlashJob, FlashPackage, FlashStepResult, ImportedFlashPackage } from "./flash";
 import { ControlModule } from "./module";
 import { VinDecodeResult } from "./vehicle";
@@ -51,4 +52,16 @@ export interface FlashService {
     onProgress: (result: FlashStepResult) => void
   ): Promise<FlashJob>;
   abort(jobId: string): Promise<void>;
+}
+
+/**
+ * Real, brand-agnostic OBD-II diagnostics (SAE J1979/ISO 15031 Mode
+ * 01/03/04/07) - works identically across every make, unlike the
+ * manufacturer-specific coding/flash services above. See
+ * src/services/diagnostics/diagnosticsService.ts.
+ */
+export interface DiagnosticsService {
+  scanForCodes(): Promise<DiagnosticScanResult>;
+  clearCodes(): Promise<void>;
+  readLiveData(): Promise<LiveDataReading[]>;
 }

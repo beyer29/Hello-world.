@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CodingService, ControlModule } from "@/types";
 import { SAMPLE_MODULES } from "@/data/modules";
+import { decodeVin } from "@/services/vin";
 
 const STORAGE_PREFIX = "bimmercoder:coding:";
 
@@ -10,6 +11,8 @@ const STORAGE_PREFIX = "bimmercoder:coding:";
  * catalogue is sample data (see src/data/README.md), so "writing" it to a
  * real control unit would be meaningless at best and unsafe at worst - this
  * service demonstrates the read/write/reset UX without making that claim.
+ * Modules are filtered to the connected VIN's decoded manufacturer so an
+ * Audi doesn't show BMW-only modules and vice versa.
  */
 export class SampleCodingService implements CodingService {
   private cache = new Map<string, ControlModule[]>();
@@ -19,7 +22,9 @@ export class SampleCodingService implements CodingService {
     if (cached) return cloneModules(cached);
 
     const stored = await AsyncStorage.getItem(STORAGE_PREFIX + vin);
-    const modules: ControlModule[] = stored ? JSON.parse(stored) : cloneModules(SAMPLE_MODULES);
+    const modules: ControlModule[] = stored
+      ? JSON.parse(stored)
+      : cloneModules(modulesForVin(vin));
     this.cache.set(vin, modules);
     return cloneModules(modules);
   }
@@ -65,4 +70,9 @@ function findOption(modules: ControlModule[], moduleId: string, optionId: string
 
 function cloneModules(modules: ControlModule[]): ControlModule[] {
   return JSON.parse(JSON.stringify(modules));
+}
+
+function modulesForVin(vin: string): ControlModule[] {
+  const { manufacturer } = decodeVin(vin);
+  return SAMPLE_MODULES.filter((m) => m.compatibleManufacturers.includes(manufacturer));
 }

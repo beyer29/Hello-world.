@@ -81,24 +81,30 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.card}>
             <Text style={styles.paragraph}>
-              BimmerCoder demonstrates what a BimmerCode-style coding and flashing workflow looks
-              like end to end: scanning for an OBD-II adapter, reading a vehicle's control
-              modules, toggling coding options, backing up and restoring coding, and running a
-              module software update.
+              BimmerCoder demonstrates what an Autel-style multi-brand diagnostic and coding
+              workflow looks like end to end, across BMW/MINI, the BMW-co-developed Toyota Supra,
+              Audi, Volkswagen, and Mercedes-Benz: scanning for an OBD-II adapter, decoding the
+              VIN, reading fault codes and live data, browsing a vehicle's control modules,
+              toggling coding options, backing up/restoring coding, and running a module software
+              update.
             </Text>
             <Text style={styles.paragraph}>
-              The coding options shown for each control module (in the Modules tab) are clearly
-              labelled sample data - illustrative placeholders modelled on the kinds of settings
-              real tools expose, not verified real BMW byte offsets. Real BMW coding definitions
-              come from BMW's proprietary NCS/ISTA data, which isn't public and isn't reproduced
-              here. See src/data/README.md for details.
+              The Diagnostics tab's fault-code read/clear and live data are real, standardized
+              OBD-II functionality (SAE J1979/ISO 15031) - it works the same way regardless of
+              make. Everything else that's brand-specific is different: the coding options shown
+              per control module (Modules tab) are clearly labelled sample data - illustrative
+              placeholders modelled on the kinds of settings real tools expose, not verified real
+              manufacturer byte offsets, which come from each OEM's proprietary diagnostic data
+              and aren't public. See src/data/README.md for details.
             </Text>
             <Text style={styles.paragraph}>
-              Similarly, the Flash tab's "update module software" workflow is fully simulated. It
-              walks through the same pre-checks, backup, erase, write, verify, and rollback steps
-              a real tool would show, but against a timed simulation rather than a real control
-              unit - real flashing needs proprietary BMW firmware containers and a wired
-              pass-thru connection that this app intentionally does not implement. See
+              Similarly, the Flash tab's "update module software" and Stage 1/2/3 tuning workflow
+              is fully simulated. It walks through the same pre-checks, backup, erase, write,
+              verify, and rollback steps a real tool would show, but against a timed simulation
+              rather than a real control unit - real flashing/tuning needs proprietary OEM
+              firmware containers and a wired pass-thru connection that this app intentionally
+              does not implement. You can also import a real file you obtained elsewhere to stage
+              it here, but the install step stays simulated either way. See
               src/services/flash/README.md for details.
             </Text>
           </View>

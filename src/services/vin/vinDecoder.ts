@@ -32,12 +32,16 @@ const VALID_VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
  * This is a tiny illustrative subset of the real, publicly documented WMI
  * registry (the full registry is maintained by SAE). It covers the
  * manufacturers relevant to this app's brief: BMW, MINI, and Toyota (for
- * the BMW/Toyota-shared Supra, which BimmerCode also supports).
+ * the BMW/Toyota-shared Supra, which BimmerCode also supports), plus Audi,
+ * Volkswagen, and Mercedes-Benz.
  */
 const WMI_MANUFACTURERS: Array<{ prefixes: string[]; manufacturer: string }> = [
   { prefixes: ["WBA", "WBS", "WBY"], manufacturer: "BMW" },
   { prefixes: ["WMW"], manufacturer: "MINI" },
   { prefixes: ["JTN", "JT"], manufacturer: "Toyota" },
+  { prefixes: ["WAU", "TRU", "WA1"], manufacturer: "Audi" },
+  { prefixes: ["WVW", "WV1", "WV2", "3VW", "1VW"], manufacturer: "Volkswagen" },
+  { prefixes: ["WDB", "WDD", "WDC", "4JG", "55S"], manufacturer: "Mercedes-Benz" },
 ];
 
 function lookupManufacturer(wmi: string): string {
@@ -140,6 +144,10 @@ function guessPlatform(manufacturer: string, modelYear: number | null): string |
 
   if (manufacturer === "Toyota") {
     return "Toyota model line (year-based guess, illustrative only, not a verified chassis code)";
+  }
+
+  if (manufacturer === "Audi" || manufacturer === "Volkswagen" || manufacturer === "Mercedes-Benz") {
+    return `${manufacturer} model line (year-based guess, illustrative only, not a verified platform code)`;
   }
 
   return `${manufacturer} model line (year-based guess, illustrative only)`;

@@ -1,4 +1,5 @@
 export * from "./backup";
+export * from "./diagnostics";
 export * from "./flash";
 export * from "./module";
 export * from "./obd";

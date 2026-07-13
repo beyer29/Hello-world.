@@ -197,8 +197,8 @@ export default function FlashScreen() {
           <Text style={styles.warningBody}>
             This workflow demonstrates the real pre-checks {"→"} backup {"→"} erase {"→"}{" "}
             write {"→"} verify sequence that real flashing tools use, step by step. It does not
-            write any real firmware to a real control unit. Real BMW TCU/EGS firmware containers are
-            proprietary OEM data (BMW ISTA/PSdZData) and are not included in this app - see
+            write any real firmware to a real control unit. Real manufacturer firmware/tuning
+            containers are proprietary OEM data and are not included in this app - see
             src/services/flash/README.md for details.
           </Text>
         </View>

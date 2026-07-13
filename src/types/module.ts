@@ -44,6 +44,7 @@ export type ModuleCategory =
   | "transmission"
   | "engine"
   | "comfort"
+  | "security"
   | "other";
 
 export interface ControlModule {
@@ -52,6 +53,12 @@ export interface ControlModule {
   name: string;
   description: string;
   category: ModuleCategory;
+  /**
+   * Which VinDecodeResult.manufacturer values this module applies to. Used
+   * to show only the modules relevant to the connected vehicle - see
+   * src/services/coding/codingService.ts.
+   */
+  compatibleManufacturers: string[];
   supportsFlashing: boolean;
   options: CodingOption[];
 }
