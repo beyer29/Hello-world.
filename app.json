@@ -1,21 +1,21 @@
 {
   "expo": {
-    "name": "BimmerCoder",
-    "slug": "bimmer-coder",
+    "name": "The Coder",
+    "slug": "the-coder",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "scheme": "bimmercoder",
+    "scheme": "thecoder",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.example.bimmercoder",
+      "bundleIdentifier": "com.example.thecoder",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "BimmerCoder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings.",
-        "NSBluetoothPeripheralUsageDescription": "BimmerCoder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings."
+        "NSBluetoothAlwaysUsageDescription": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings.",
+        "NSBluetoothPeripheralUsageDescription": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings."
       }
     },
     "android": {
-      "package": "com.example.bimmercoder",
+      "package": "com.example.thecoder",
       "permissions": [
         "BLUETOOTH",
         "BLUETOOTH_ADMIN",
@@ -30,7 +30,7 @@
         {
           "isBackgroundEnabled": false,
           "modes": ["peripheral", "central"],
-          "bluetoothAlwaysPermission": "BimmerCoder connects to a Bluetooth OBD-II adapter plugged into your vehicle."
+          "bluetoothAlwaysPermission": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle."
         }
       ]
     ]

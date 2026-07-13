@@ -81,7 +81,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>About</Text>
           <View style={styles.card}>
             <Text style={styles.paragraph}>
-              BimmerCoder demonstrates what an Autel-style multi-brand diagnostic and coding
+              The Coder demonstrates what an Autel-style multi-brand diagnostic and coding
               workflow looks like end to end, across BMW/MINI, the BMW-co-developed Toyota Supra,
               Audi, Volkswagen, and Mercedes-Benz: scanning for an OBD-II adapter, decoding the
               VIN, reading fault codes and live data, browsing a vehicle's control modules,

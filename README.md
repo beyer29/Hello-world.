@@ -1,4 +1,4 @@
-# BimmerCoder
+# The Coder
 
 A cross-platform (iOS + Android, via Expo) React Native app combining two
 real-world tool categories: a BimmerCode-style coding tool (a third-party

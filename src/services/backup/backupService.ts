@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BackupService, CodingBackup, CodingSnapshotEntry, ControlModule } from "@/types";
 
-const STORAGE_KEY = "bimmercoder:backups";
+const STORAGE_KEY = "thecoder:backups";
 
 export class AsyncStorageBackupService implements BackupService {
   async createBackup(

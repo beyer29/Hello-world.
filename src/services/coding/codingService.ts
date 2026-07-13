@@ -3,7 +3,7 @@ import { CodingService, ControlModule } from "@/types";
 import { SAMPLE_MODULES } from "@/data/modules";
 import { decodeVin } from "@/services/vin";
 
-const STORAGE_PREFIX = "bimmercoder:coding:";
+const STORAGE_PREFIX = "thecoder:coding:";
 
 /**
  * Applies coding writes to a per-VIN in-memory/AsyncStorage-backed copy of

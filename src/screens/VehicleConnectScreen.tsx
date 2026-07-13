@@ -72,7 +72,7 @@ export default function VehicleConnectScreen() {
       <View style={styles.container}>
         <Text style={styles.title}>Connect your vehicle</Text>
         <Text style={styles.paragraph}>
-          BimmerCoder talks to your car through a Bluetooth ELM327-compatible OBD-II adapter
+          The Coder talks to your car through a Bluetooth ELM327-compatible OBD-II adapter
           plugged into the OBD-II port (usually under the dashboard). Pair the adapter over
           Bluetooth in your phone's settings first, then turn the ignition on with the engine
           off and scan below to find it.

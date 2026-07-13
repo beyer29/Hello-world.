@@ -65,7 +65,7 @@ const SAMPLE_PACKAGES: Record<string, SampleFlashPackage[]> = {
   ME: stagePackages("ME"),
 };
 
-const IMPORTED_STORAGE_KEY = "bimmercoder:importedTunes";
+const IMPORTED_STORAGE_KEY = "thecoder:importedTunes";
 const TUNES_DIR = `${FileSystem.documentDirectory ?? ""}tunes/`;
 
 const STEP_SEQUENCE: { status: FlashJobStatus; label: string; durationMs: number }[] = [
