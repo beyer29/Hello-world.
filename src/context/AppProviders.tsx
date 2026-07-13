@@ -8,7 +8,11 @@ import React, {
   useState,
 } from "react";
 import {
+  AgentResponse,
+  AgentTools,
+  AiAgent,
   BackupService,
+  ChatMessage,
   CodingBackup,
   CodingService,
   ConnectedVehicle,
@@ -24,6 +28,7 @@ import {
   ObdAdapter,
   ObdConnectionState,
   ObdDeviceInfo,
+  PendingConfirmation,
   PickedFile,
 } from "@/types";
 import { createObdAdapter } from "@/services/obd";
@@ -32,6 +37,7 @@ import { SampleCodingService } from "@/services/coding";
 import { AsyncStorageBackupService } from "@/services/backup";
 import { SimulatedFlashService } from "@/services/flash";
 import { Obd2DiagnosticsService } from "@/services/diagnostics";
+import { LocalRuleBasedAgent } from "@/services/agent";
 
 interface Services {
   obd: ObdAdapter;
@@ -129,7 +135,7 @@ interface DiagnosticsContextValue {
   scanning: boolean;
   liveData: LiveDataReading[];
   liveDataActive: boolean;
-  scanForCodes: () => Promise<void>;
+  scanForCodes: () => Promise<DiagnosticScanResult>;
   clearCodes: () => Promise<void>;
   startLiveData: () => void;
   stopLiveData: () => void;
@@ -140,6 +146,20 @@ const DiagnosticsContext = createContext<DiagnosticsContextValue | null>(null);
 export function useDiagnostics(): DiagnosticsContextValue {
   const ctx = useContext(DiagnosticsContext);
   if (!ctx) throw new Error("useDiagnostics must be used within AppProviders");
+  return ctx;
+}
+
+interface AgentContextValue {
+  messages: ChatMessage[];
+  pendingConfirmation: PendingConfirmation | null;
+  sendMessage: (text: string) => Promise<AgentResponse>;
+}
+
+const AgentContext = createContext<AgentContextValue | null>(null);
+
+export function useAgent(): AgentContextValue {
+  const ctx = useContext(AgentContext);
+  if (!ctx) throw new Error("useAgent must be used within AppProviders");
   return ctx;
 }
 
@@ -358,7 +378,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const scanForCodes = useCallback(async () => {
     setScanning(true);
     try {
-      setScanResult(await services.diagnostics.scanForCodes());
+      const result = await services.diagnostics.scanForCodes();
+      setScanResult(result);
+      return result;
     } finally {
       setScanning(false);
     }
@@ -412,6 +434,78 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     [scanResult, scanning, liveData, liveDataActive, scanForCodes, clearCodes, startLiveData, stopLiveData]
   );
 
+  const agentRef = useRef<AiAgent | null>(null);
+  if (!agentRef.current) agentRef.current = new LocalRuleBasedAgent();
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
+
+  const sendMessage = useCallback(
+    async (text: string): Promise<AgentResponse> => {
+      const userMessage: ChatMessage = {
+        id: `msg-${Date.now()}-u`,
+        role: "user",
+        text,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages((m) => [...m, userMessage]);
+
+      const tools: AgentTools = {
+        vin: vehicleState.vehicle?.vin ?? null,
+        manufacturer: vehicleState.vehicle?.decoded.manufacturer ?? null,
+        modules,
+        updateOption,
+        resetOption,
+        backups,
+        createBackup,
+        restoreBackup,
+        scanForCodes,
+        lastScanResult: scanResult,
+        clearCodes,
+        startLiveData,
+        stopLiveData,
+        liveData,
+        liveDataActive,
+        listFlashPackages: listPackages,
+        pendingConfirmation,
+        setPendingConfirmation,
+      };
+
+      const response = await agentRef.current!.respond(text, tools);
+      const assistantMessage: ChatMessage = {
+        id: `msg-${Date.now()}-a`,
+        role: "assistant",
+        text: response.reply,
+        timestamp: new Date().toISOString(),
+      };
+      setChatMessages((m) => [...m, assistantMessage]);
+      return response;
+    },
+    [
+      vehicleState.vehicle,
+      modules,
+      updateOption,
+      resetOption,
+      backups,
+      createBackup,
+      restoreBackup,
+      scanForCodes,
+      scanResult,
+      clearCodes,
+      startLiveData,
+      stopLiveData,
+      liveData,
+      liveDataActive,
+      listPackages,
+      pendingConfirmation,
+    ]
+  );
+
+  const agentValue = useMemo<AgentContextValue>(
+    () => ({ messages: chatMessages, pendingConfirmation, sendMessage }),
+    [chatMessages, pendingConfirmation, sendMessage]
+  );
+
   return (
     <ServicesContext.Provider value={services}>
       <VehicleContext.Provider value={vehicleValue}>
@@ -419,7 +513,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           <BackupsContext.Provider value={backupsValue}>
             <FlashContext.Provider value={flashValue}>
               <DiagnosticsContext.Provider value={diagnosticsValue}>
-                {children}
+                <AgentContext.Provider value={agentValue}>{children}</AgentContext.Provider>
               </DiagnosticsContext.Provider>
             </FlashContext.Provider>
           </BackupsContext.Provider>

@@ -107,6 +107,13 @@ export default function SettingsScreen() {
               it here, but the install step stays simulated either way. See
               src/services/flash/README.md for details.
             </Text>
+            <Text style={styles.paragraph}>
+              Beyer (the chat tab) can trigger any of the above for you - it's not a separate
+              capability, just a natural-language front end for the same actions. It's a local
+              rule-based assistant, not a language model: no network calls, no API key. Its
+              repair advice comes from a small table of real, generic (SAE-standardized) code
+              knowledge, not a physical inspection - see src/services/agent/README.md.
+            </Text>
           </View>
         </View>
       </ScrollView>

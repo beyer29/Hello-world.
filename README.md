@@ -11,9 +11,10 @@ It lets you connect to a Bluetooth OBD-II adapter, decode the VIN to
 identify the manufacturer, run a full diagnostic scan (read/clear fault
 codes) and view live data, browse the vehicle's brand-appropriate control
 modules, flip "coding" options that already exist in the car but aren't
-exposed in the normal owner menus, back up/restore coding state, and walk
+exposed in the normal owner menus, back up/restore coding state, walk
 through what a transmission or engine software-update/tuning install
-workflow looks like.
+workflow looks like, and chat with **Beyer**, a built-in assistant that can
+run any of the above for you and explain fault codes in plain language.
 
 **Not included: key/immobilizer programming, for any manufacturer.** See
 "Why key programming isn't in this app" below.
@@ -31,6 +32,8 @@ workflow looks like.
 | Gearbox/transmission (EGS) flashing (`src/services/flash`) | **Simulated.** The full pre-checks → backup → erase → write → verify workflow is real and complete, but it runs against a timed simulation, not a real control unit. See `src/services/flash/README.md` for why. |
 | Engine (DME) Stage 1/2/3 tuning (`src/services/flash`) | **Simulated, and intentionally so.** Real performance tuning rewrites fuel/ignition/boost tables and is dyno-calibrated per exact hardware combo - this app only describes what each stage conceptually changes and simulates the install workflow. It never ships or fabricates real tuning values; see `src/services/flash/README.md`. |
 | Importing your own tune/firmware file (Flash screen) | **Real file handling, simulated install.** You can pick a real file from your device (`expo-document-picker`); it's really copied into app storage and fingerprinted (`expo-crypto`/`expo-file-system`). But it still only runs through the *simulated* install workflow above - this app never gains a real ECU-write capability just because the file is real. |
+| Beyer, the built-in assistant (`src/services/agent`) | **Real actions, local rule-based reasoning.** Beyer genuinely triggers the same scan/backup/coding/live-data/tuning-lookup actions the screens do - nothing it does is faked. But the "AI" itself is keyword/pattern matching plus the real repair-advice table below, not a language model - no network call, no API key. See `src/services/agent/README.md` for the honest scope and the extension point for a real LLM. |
+| Fault-code repair advice (`src/data/repairAdvice.ts`) | **Real, generic automotive knowledge.** Common causes and urgency guidance for the same public generic (P0xxx) codes as the Diagnostics tab - the kind of information in any repair manual, not manufacturer-specific diagnosis, and not a substitute for a physical inspection. |
 
 In short: **the transport and diagnostic layers are real, the manufacturer-
 specific coding/tuning data is not.** If you have your own verified coding
@@ -69,10 +72,11 @@ src/
     coding/                  # reads/writes coding options (sample-data backed)
     backup/                  # AsyncStorage-backed backup/restore
     flash/                   # simulated flash/tuning workflow + README on scope
+    agent/                   # Beyer: local rule-based assistant + README on scope
   context/AppProviders.tsx   # app-wide state via React context + hooks
   navigation/RootNavigator.tsx
   theme/theme.ts
-  screens/                   # Diagnostics, ModuleList, ModuleDetail, Backups, Flash, Connect, Settings
+  screens/                   # Beyer, Diagnostics, ModuleList, ModuleDetail, Backups, Flash, Connect, Settings
 ```
 
 ## Running it
@@ -111,3 +115,7 @@ native `react-native-ble-plx` module) - see the Expo docs for
   doesn't make this app capable of writing it to a real vehicle - that step
   still has to happen through whatever licensed tool/hardware produced the
   file.
+- Beyer's repair advice is generic, code-based guidance (the same kind of
+  information in a repair manual), not a physical inspection or a
+  professional diagnosis - a code narrows down what to check, it doesn't
+  confirm the actual cause on the car in front of you.

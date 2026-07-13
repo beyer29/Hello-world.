@@ -1,3 +1,4 @@
+export * from "./agent";
 export * from "./backup";
 export * from "./diagnostics";
 export * from "./flash";
