@@ -5,4 +5,5 @@ export * from "./flash";
 export * from "./module";
 export * from "./obd";
 export * from "./services";
+export * from "./subscription";
 export * from "./vehicle";

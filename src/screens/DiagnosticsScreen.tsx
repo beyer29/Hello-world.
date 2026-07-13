@@ -9,12 +9,14 @@ import {
   Text,
   View,
 } from "react-native";
-import { useDiagnostics, useVehicle } from "@/context/AppProviders";
+import { useDiagnostics, useSubscription, useVehicle } from "@/context/AppProviders";
+import { AdBanner } from "@/components/AdBanner";
 import { colors, spacing, typography } from "@/theme/theme";
 import { DtcCode } from "@/types";
 
 export default function DiagnosticsScreen() {
   const { vehicle } = useVehicle();
+  const { status } = useSubscription();
   const {
     scanResult,
     scanning,
@@ -143,6 +145,7 @@ export default function DiagnosticsScreen() {
           </View>
         )}
       </ScrollView>
+      {status.tier === "free" ? <AdBanner /> : null}
     </SafeAreaView>
   );
 }

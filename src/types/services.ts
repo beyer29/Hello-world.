@@ -2,6 +2,7 @@ import { CodingBackup, CodingSnapshotEntry } from "./backup";
 import { DiagnosticScanResult, LiveDataReading } from "./diagnostics";
 import { FlashJob, FlashPackage, FlashStepResult, ImportedFlashPackage } from "./flash";
 import { ControlModule } from "./module";
+import { SubscriptionPlan, SubscriptionProduct, SubscriptionStatus } from "./subscription";
 import { VinDecodeResult } from "./vehicle";
 
 export interface PickedFile {
@@ -64,4 +65,20 @@ export interface DiagnosticsService {
   scanForCodes(): Promise<DiagnosticScanResult>;
   clearCodes(): Promise<void>;
   readLiveData(): Promise<LiveDataReading[]>;
+}
+
+/**
+ * Subscription/entitlement checks. The default implementation
+ * (`MockSubscriptionService`) simulates purchases locally with no real
+ * money involved - there's no store product configured to charge against
+ * yet. `RevenueCatSubscriptionService` is real integration code against
+ * the RevenueCat SDK, used once real App Store Connect/Play Console
+ * products and a RevenueCat API key are configured. See
+ * src/services/subscription/README.md.
+ */
+export interface SubscriptionService {
+  getStatus(): Promise<SubscriptionStatus>;
+  listProducts(): Promise<SubscriptionProduct[]>;
+  purchase(plan: SubscriptionPlan): Promise<SubscriptionStatus>;
+  restorePurchases(): Promise<SubscriptionStatus>;
 }

@@ -19,6 +19,16 @@ run any of the above for you and explain fault codes in plain language.
 **Not included: key/immobilizer programming, for any manufacturer.** See
 "Why key programming isn't in this app" below.
 
+## Free vs. Premium
+
+- **Free**: the Diagnostics tab only (scanning, fault codes, live data),
+  with a banner ad.
+- **Premium** - $9.99/month or $100/year: everything else (Beyer,
+  Modules/coding, Backups, the Flash/tuning workflow) and no ads.
+
+See "Subscriptions and ads" below for what's real vs. simulated in this
+part of the app.
+
 ## What's real vs. simulated - read this before anything else
 
 | Layer | Status |
@@ -34,6 +44,8 @@ run any of the above for you and explain fault codes in plain language.
 | Importing your own tune/firmware file (Flash screen) | **Real file handling, simulated install.** You can pick a real file from your device (`expo-document-picker`); it's really copied into app storage and fingerprinted (`expo-crypto`/`expo-file-system`). But it still only runs through the *simulated* install workflow above - this app never gains a real ECU-write capability just because the file is real. |
 | Beyer, the built-in assistant (`src/services/agent`) | **Real actions, local rule-based reasoning.** Beyer genuinely triggers the same scan/backup/coding/live-data/tuning-lookup actions the screens do - nothing it does is faked. But the "AI" itself is keyword/pattern matching plus the real repair-advice table below, not a language model - no network call, no API key. See `src/services/agent/README.md` for the honest scope and the extension point for a real LLM. |
 | Fault-code repair advice (`src/data/repairAdvice.ts`) | **Real, generic automotive knowledge.** Common causes, urgency, and whether clearing a code will likely stick vs. return without a real repair, for the same public generic (P0xxx) codes as the Diagnostics tab - the kind of information in any repair manual, not manufacturer-specific diagnosis, and not a substitute for a physical inspection. |
+| Subscriptions (`src/services/subscription`) | **Real integration code, simulated by default.** `RevenueCatSubscriptionService` is genuine, correct code against the real RevenueCat SDK - but `MockSubscriptionService` is what's actually active, since there's no RevenueCat account or App Store Connect/Play Console product configured yet. Purchases simulated through it are not real money. See `src/services/subscription/README.md`. |
+| Ads (`src/components/AdBanner.tsx`) | **Real AdMob SDK integration, test ad units.** Uses Google's own `TestIds.BANNER` and the sample AdMob App IDs from Google's documentation, not invented ones - but these must be swapped for your real AdMob IDs before release (serving test ads in production violates AdMob policy). Consent (GDPR/App Tracking Transparency) isn't implemented; ads are requested non-personalized to avoid needing it for now. See `src/services/ads/README.md`. |
 
 In short: **the transport and diagnostic layers are real, the manufacturer-
 specific coding/tuning data is not.** If you have your own verified coding
@@ -45,6 +57,19 @@ invented value to a real control unit can cause real, unexpected side
 effects (this is explicitly what the app's own about screen warns about,
 referencing a documented case of a BimmerCode user's brake lights failing
 after a mis-set footwell-module option).
+
+## Subscriptions and ads
+
+The free/premium split is real and enforced in the app (`withPaywall` in
+`src/navigation/RootNavigator.tsx` gates the Beyer, Modules, and Backups
+tabs behind `useSubscription().status.tier === "premium"`; free users see
+an ad banner on the Diagnostics tab instead). What's simulated is the
+money side: there's no real payment processor connected yet. Settings has
+a "(demo) reset to free" action, visible only while the simulated service
+is active, so you can toggle between the free and premium experience
+without a real purchase. See `src/services/subscription/README.md` and
+`src/services/ads/README.md` for exactly what's needed to go live with
+real payments and real ads.
 
 ## Why key programming isn't in this app
 
@@ -73,10 +98,13 @@ src/
     backup/                  # AsyncStorage-backed backup/restore
     flash/                   # simulated flash/tuning workflow + README on scope
     agent/                   # Beyer: local rule-based assistant + README on scope
+    subscription/            # RevenueCat integration + mock default + README on scope
+    ads/                     # README on AdMob integration scope
+  components/AdBanner.tsx    # free-tier-only banner ad
   context/AppProviders.tsx   # app-wide state via React context + hooks
-  navigation/RootNavigator.tsx
+  navigation/RootNavigator.tsx  # withPaywall() gates premium tabs
   theme/theme.ts
-  screens/                   # Beyer, Diagnostics, ModuleList, ModuleDetail, Backups, Flash, Connect, Settings
+  screens/                   # Beyer, Diagnostics, ModuleList, ModuleDetail, Backups, Flash, Connect, Settings, Paywall
 ```
 
 ## Running it
@@ -91,10 +119,14 @@ No physical hardware is required - on first launch, "Scan for adapters" on
 the connect screen discovers four simulated demo adapters, each pretending
 to be paired with a different demo vehicle (BMW, Audi, Volkswagen,
 Mercedes-Benz) so you can see the brand-filtered module catalogue change.
-To talk to a **real** ELM327 Bluetooth LE adapter
-you'll need a custom Expo dev client build (Expo Go does not support the
-native `react-native-ble-plx` module) - see the Expo docs for
-[custom dev clients](https://docs.expo.dev/development/introduction/).
+To talk to a **real** ELM327 Bluetooth LE adapter, use real ads, or use
+real RevenueCat purchases, you'll need a custom Expo dev client build
+(Expo Go does not support the native `react-native-ble-plx`,
+`react-native-google-mobile-ads`, or `react-native-purchases` modules) -
+see the Expo docs for
+[custom dev clients](https://docs.expo.dev/development/introduction/). The
+simulated defaults (mock adapter, mock subscription service) all work
+fine in Expo Go.
 
 ## Safety notes carried over from the real tool
 

@@ -2,7 +2,7 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { useVehicle } from "@/context/AppProviders";
+import { useSubscription, useVehicle } from "@/context/AppProviders";
 import { theme } from "@/theme/theme";
 import VehicleConnectScreen from "@/screens/VehicleConnectScreen";
 import ModuleListScreen from "@/screens/ModuleListScreen";
@@ -12,6 +12,7 @@ import FlashScreen from "@/screens/FlashScreen";
 import DiagnosticsScreen from "@/screens/DiagnosticsScreen";
 import AgentScreen from "@/screens/AgentScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import PaywallScreen from "@/screens/PaywallScreen";
 
 export type ModulesStackParamList = {
   ModuleList: undefined;
@@ -49,10 +50,29 @@ function ModulesStackNavigator() {
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
+/**
+ * Wraps a premium-only screen so free-tier users see the paywall instead.
+ * Diagnostics (scanning) and Settings stay free - everything else here
+ * (Beyer, Modules/coding, Backups) is premium.
+ */
+function withPaywall(Component: React.ComponentType, featureName: string) {
+  return function Gated() {
+    const { status, loading } = useSubscription();
+    if (!loading && status.tier !== "premium") {
+      return <PaywallScreen featureName={featureName} />;
+    }
+    return <Component />;
+  };
+}
+
+const GatedAgentScreen = withPaywall(AgentScreen, "Beyer");
+const GatedModulesStackNavigator = withPaywall(ModulesStackNavigator, "Modules & coding");
+const GatedBackupRestoreScreen = withPaywall(BackupRestoreScreen, "Backups");
+
 function MainTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="AgentTab" component={AgentScreen} options={{ title: "Beyer" }} />
+      <Tab.Screen name="AgentTab" component={GatedAgentScreen} options={{ title: "Beyer" }} />
       <Tab.Screen
         name="DiagnosticsTab"
         component={DiagnosticsScreen}
@@ -60,12 +80,12 @@ function MainTabs() {
       />
       <Tab.Screen
         name="ModulesTab"
-        component={ModulesStackNavigator}
+        component={GatedModulesStackNavigator}
         options={{ title: "Modules" }}
       />
       <Tab.Screen
         name="BackupsTab"
-        component={BackupRestoreScreen}
+        component={GatedBackupRestoreScreen}
         options={{ title: "Backups" }}
       />
       <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: "Settings" }} />

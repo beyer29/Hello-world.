@@ -9,9 +9,9 @@ import {
   Text,
   View,
 } from "react-native";
-import { useServices, useVehicle } from "@/context/AppProviders";
+import { useServices, useSubscription, useVehicle } from "@/context/AppProviders";
 import { colors, spacing, typography } from "@/theme/theme";
-import { ObdTransport } from "@/types";
+import { ObdTransport, SubscriptionPlan } from "@/types";
 
 const TRANSPORT_LABELS: Record<ObdTransport, string> = {
   "bluetooth-le": "Bluetooth LE",
@@ -22,7 +22,16 @@ const TRANSPORT_LABELS: Record<ObdTransport, string> = {
 export default function SettingsScreen() {
   const { obd } = useServices();
   const { vehicle, disconnect } = useVehicle();
+  const {
+    status,
+    products,
+    purchasing,
+    purchase,
+    restorePurchases,
+    resetToFreeForTesting,
+  } = useSubscription();
   const [disconnecting, setDisconnecting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   const handleDisconnect = useCallback(async () => {
     setDisconnecting(true);
@@ -35,12 +44,98 @@ export default function SettingsScreen() {
     }
   }, [disconnect]);
 
+  const handlePurchase = useCallback(
+    async (plan: SubscriptionPlan) => {
+      try {
+        await purchase(plan);
+      } catch (err) {
+        Alert.alert("Purchase failed", String(err));
+      }
+    },
+    [purchase]
+  );
+
+  const handleRestore = useCallback(async () => {
+    setRestoring(true);
+    try {
+      await restorePurchases();
+    } catch (err) {
+      Alert.alert("Restore failed", String(err));
+    } finally {
+      setRestoring(false);
+    }
+  }, [restorePurchases]);
+
   const transportLabel = TRANSPORT_LABELS[obd.transport];
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Settings</Text>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Plan</Text>
+              <Text style={styles.rowValue}>
+                {status.tier === "premium" ? `Premium (${status.activePlan})` : "Free"}
+              </Text>
+            </View>
+            {status.tier === "premium" && status.expiresAt ? (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Renews/expires</Text>
+                  <Text style={styles.rowValue}>{new Date(status.expiresAt).toLocaleDateString()}</Text>
+                </View>
+              </>
+            ) : null}
+
+            {status.tier === "free" ? (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.paragraph}>
+                  Free covers scanning (Diagnostics tab). Premium unlocks Beyer, Modules/coding,
+                  Backups, and the tuning workflow, with no ads.
+                </Text>
+                <View style={styles.plansRow}>
+                  {products.map((product) => (
+                    <Pressable
+                      key={product.productId}
+                      onPress={() => handlePurchase(product.plan)}
+                      disabled={purchasing}
+                      style={({ pressed }) => [
+                        styles.planButton,
+                        purchasing && styles.buttonDisabled,
+                        pressed && !purchasing && styles.buttonPressed,
+                      ]}
+                    >
+                      <Text style={styles.planButtonLabel}>{product.priceDisplay}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {purchasing ? <ActivityIndicator color={colors.accent} style={styles.spinnerSpacing} /> : null}
+              </>
+            ) : null}
+
+            <View style={styles.divider} />
+            <Pressable onPress={handleRestore} disabled={restoring} style={styles.linkButton}>
+              <Text style={styles.linkButtonLabel}>
+                {restoring ? "Restoring..." : "Restore purchases"}
+              </Text>
+            </Pressable>
+
+            {resetToFreeForTesting && status.tier === "premium" ? (
+              <>
+                <View style={styles.divider} />
+                <Pressable onPress={resetToFreeForTesting} style={styles.linkButton}>
+                  <Text style={styles.linkButtonLabel}>(demo) Reset to free</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Connection</Text>
@@ -114,6 +209,13 @@ export default function SettingsScreen() {
               repair advice comes from a small table of real, generic (SAE-standardized) code
               knowledge, not a physical inspection - see src/services/agent/README.md.
             </Text>
+            <Text style={styles.paragraph}>
+              Free accounts get scanning only, with ads; Premium ($9.99/month or $100/year)
+              unlocks everything else and removes ads. The subscription flow above simulates a
+              purchase locally - no real store or payment is involved yet. See
+              src/services/subscription/README.md for what's needed to go live, and
+              src/services/ads/README.md for the ad integration's scope.
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -153,6 +255,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
+  },
+  plansRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  planButton: {
+    flex: 1,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+  },
+  planButtonLabel: {
+    ...typography.body,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  spinnerSpacing: {
+    marginTop: spacing.sm,
+  },
+  linkButton: {
+    paddingVertical: spacing.xs,
+  },
+  linkButtonLabel: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: "600",
   },
   row: {
     flexDirection: "row",

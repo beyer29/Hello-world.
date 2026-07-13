@@ -30,6 +30,10 @@ import {
   ObdDeviceInfo,
   PendingConfirmation,
   PickedFile,
+  SubscriptionPlan,
+  SubscriptionProduct,
+  SubscriptionService,
+  SubscriptionStatus,
 } from "@/types";
 import { createObdAdapter } from "@/services/obd";
 import { decodeVin } from "@/services/vin";
@@ -38,6 +42,7 @@ import { AsyncStorageBackupService } from "@/services/backup";
 import { SimulatedFlashService } from "@/services/flash";
 import { Obd2DiagnosticsService } from "@/services/diagnostics";
 import { LocalRuleBasedAgent } from "@/services/agent";
+import { createSubscriptionService, MockSubscriptionService } from "@/services/subscription";
 
 interface Services {
   obd: ObdAdapter;
@@ -45,6 +50,7 @@ interface Services {
   backup: BackupService;
   flash: FlashService;
   diagnostics: DiagnosticsService;
+  subscription: SubscriptionService;
 }
 
 const ServicesContext = createContext<Services | null>(null);
@@ -163,6 +169,25 @@ export function useAgent(): AgentContextValue {
   return ctx;
 }
 
+interface SubscriptionContextValue {
+  status: SubscriptionStatus;
+  loading: boolean;
+  products: SubscriptionProduct[];
+  purchasing: boolean;
+  purchase: (plan: SubscriptionPlan) => Promise<void>;
+  restorePurchases: () => Promise<void>;
+  /** Only set when running the local mock (no real store configured) - lets Settings offer a demo downgrade. */
+  resetToFreeForTesting: (() => Promise<void>) | null;
+}
+
+const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
+
+export function useSubscription(): SubscriptionContextValue {
+  const ctx = useContext(SubscriptionContext);
+  if (!ctx) throw new Error("useSubscription must be used within AppProviders");
+  return ctx;
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const servicesRef = useRef<Services | null>(null);
   if (!servicesRef.current) {
@@ -173,6 +198,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       backup: new AsyncStorageBackupService(),
       flash: new SimulatedFlashService(),
       diagnostics: new Obd2DiagnosticsService(obd),
+      subscription: createSubscriptionService(),
     };
   }
   const services = servicesRef.current;
@@ -506,6 +532,78 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     [chatMessages, pendingConfirmation, sendMessage]
   );
 
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus>({
+    tier: "free",
+    activePlan: null,
+    expiresAt: null,
+  });
+  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+  const [subscriptionProducts, setSubscriptionProducts] = useState<SubscriptionProduct[]>([]);
+  const [purchasing, setPurchasing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [status, products] = await Promise.all([
+        services.subscription.getStatus(),
+        services.subscription.listProducts(),
+      ]);
+      if (!cancelled) {
+        setSubscriptionStatus(status);
+        setSubscriptionProducts(products);
+        setSubscriptionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [services]);
+
+  const purchase = useCallback(
+    async (plan: SubscriptionPlan) => {
+      setPurchasing(true);
+      try {
+        setSubscriptionStatus(await services.subscription.purchase(plan));
+      } finally {
+        setPurchasing(false);
+      }
+    },
+    [services]
+  );
+
+  const restorePurchases = useCallback(async () => {
+    setSubscriptionStatus(await services.subscription.restorePurchases());
+  }, [services]);
+
+  const resetToFreeForTesting = useCallback(async () => {
+    if (services.subscription instanceof MockSubscriptionService) {
+      setSubscriptionStatus(await services.subscription.resetToFreeForTesting());
+    }
+  }, [services]);
+
+  const subscriptionValue = useMemo<SubscriptionContextValue>(
+    () => ({
+      status: subscriptionStatus,
+      loading: subscriptionLoading,
+      products: subscriptionProducts,
+      purchasing,
+      purchase,
+      restorePurchases,
+      resetToFreeForTesting:
+        services.subscription instanceof MockSubscriptionService ? resetToFreeForTesting : null,
+    }),
+    [
+      subscriptionStatus,
+      subscriptionLoading,
+      subscriptionProducts,
+      purchasing,
+      purchase,
+      restorePurchases,
+      resetToFreeForTesting,
+      services,
+    ]
+  );
+
   return (
     <ServicesContext.Provider value={services}>
       <VehicleContext.Provider value={vehicleValue}>
@@ -513,7 +611,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           <BackupsContext.Provider value={backupsValue}>
             <FlashContext.Provider value={flashValue}>
               <DiagnosticsContext.Provider value={diagnosticsValue}>
-                <AgentContext.Provider value={agentValue}>{children}</AgentContext.Provider>
+                <AgentContext.Provider value={agentValue}>
+                  <SubscriptionContext.Provider value={subscriptionValue}>
+                    {children}
+                  </SubscriptionContext.Provider>
+                </AgentContext.Provider>
               </DiagnosticsContext.Provider>
             </FlashContext.Provider>
           </BackupsContext.Provider>
