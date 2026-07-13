@@ -1,10 +1,10 @@
 import { describeDtc } from "@/data/dtcDescriptions";
-import { adviseOnDtc } from "@/data/repairAdvice";
-import { AgentResponse, AgentTools, AiAgent, ControlModule, DtcCode } from "@/types";
+import { adviseOnDtc, DtcAdvice } from "@/data/repairAdvice";
+import { AgentResponse, AgentTools, AiAgent, ControlModule, DiagnosticScanResult, DtcCode } from "@/types";
 
 const DTC_PATTERN = /\b([PCBU][0-9A-F]{4})\b/i;
-const AFFIRMATIVE = /\b(yes|confirm|do it|go ahead|proceed|sure)\b/i;
-const NEGATIVE = /\b(no|cancel|nevermind|never mind|stop)\b/i;
+const AFFIRMATIVE = /\b(yes|yep|yeah|confirm|do it|go ahead|proceed|sure)\b/i;
+const NEGATIVE = /\b(no|nope|cancel|nevermind|never mind|stop)\b/i;
 
 /**
  * Beyer's default (and, in this build, only functional) reasoning engine:
@@ -23,21 +23,40 @@ export class LocalRuleBasedAgent implements AiAgent {
       return this.handleConfirmation(input, tools);
     }
 
-    if (/^(hi|hello|hey|help|what can you do)\b/.test(lower) || lower.length === 0) {
+    if (/^(hi|hello|hey|help|yo|sup)\b/.test(lower) || /what can you do/.test(lower) || lower.length === 0) {
       return { reply: this.helpText(tools) };
     }
 
-    if (/\b(scan|check.*fault|check.*code|read.*code|diagnos)/i.test(lower)) {
+    if (/\b(thanks|thank you|cheers|appreciate it)\b/i.test(lower)) {
+      return { reply: "Anytime - let me know if anything else comes up." };
+    }
+    if (/\b(bye|goodbye|see ya|later)\b/i.test(lower)) {
+      return { reply: "Talk soon." };
+    }
+
+    if (
+      /\b(scan|check.*fault|check.*code|read.*code|diagnos|any (problems?|issues?)|something wrong|what'?s wrong)\b/i.test(
+        lower
+      )
+    ) {
       return this.runScan(tools);
     }
 
+    if (/\b(tell me more|more detail|go deeper|explain (more|those|that|them))\b/i.test(lower)) {
+      return { reply: this.moreDetail(tools) };
+    }
+
     const dtcMatch = input.match(DTC_PATTERN);
-    if (/\bexplain\b/i.test(lower) || (dtcMatch && /\b(what|mean|advise|advice)/i.test(lower))) {
+    if (/\bexplain\b/i.test(lower) || (dtcMatch && /\b(what|mean|advise|advice)\b/i.test(lower))) {
       if (dtcMatch) return { reply: this.explainCode(dtcMatch[1].toUpperCase()) };
       return { reply: "Which code would you like explained? Send it like \"explain P0301\"." };
     }
     if (dtcMatch) {
       return { reply: this.explainCode(dtcMatch[1].toUpperCase()) };
+    }
+
+    if (/\b(what|which)\b[\s\S]{0,40}\b(repair|fix|clear)/i.test(lower) || /\bclear.{0,15}(without|instead of).{0,15}(repair|fix)/i.test(lower)) {
+      return { reply: this.clearVsRepairBreakdown(tools.lastScanResult) };
     }
 
     if (/\bclear\b.*\b(code|fault)/i.test(lower)) {
@@ -79,15 +98,17 @@ export class LocalRuleBasedAgent implements AiAgent {
       return this.toggleOption(toggleMatch[1], toggleMatch[2], tools);
     }
 
-    if (/\b(repair|fix|should i|need.*repair|urgent|worry)\b/i.test(lower)) {
-      return { reply: this.repairVerdict(tools) };
+    if (/\b(repair|fix|should i|need.*repair|urgent|worry|safe to drive)\b/i.test(lower)) {
+      return { reply: this.repairVerdict(tools.lastScanResult) };
     }
 
     return {
       reply:
-        "I'm not sure how to help with that yet. Try: \"scan for faults\", \"explain P0301\", " +
-        "\"should I get this repaired\", \"back up my coding\", \"list modules\", " +
-        "\"turn on welcome lighting\", \"start live data\", or \"show tuning options\".",
+        "I didn't quite catch that. A few things I'm good at: \"scan for faults\", " +
+        "\"explain P0301\", \"what can just be cleared\", \"should I get this repaired\", " +
+        "\"back up my coding\", \"list modules\", \"turn on welcome lighting\", " +
+        "\"start live data\", or \"show tuning options\". Feel free to ask however you'd " +
+        "naturally phrase it - I'll do my best to match it.",
     };
   }
 
@@ -97,11 +118,12 @@ export class LocalRuleBasedAgent implements AiAgent {
       : "No vehicle connected yet - connect one first from the Connect screen.";
     return (
       `Hi, I'm Beyer. ${vehicleLine}\n\n` +
-      "I can: run a full diagnostic scan and explain what any fault code means and whether " +
-      "it needs attention, back up or restore your coding, list/toggle coding options, start " +
-      "live data, and point you to Stage 1/2/3 tuning options. I'm a local rule-based " +
-      "assistant - no internet connection, no account needed - so I work best with short, " +
-      "direct requests rather than open-ended conversation."
+      "I can run a full diagnostic scan, explain any fault code (what it means, likely causes, " +
+      "whether it's urgent, and whether clearing it will likely stick or just come back), back " +
+      "up or restore your coding, list/toggle coding options, start live data, and point you to " +
+      "Stage 1/2/3 tuning options. I'm a local rule-based assistant - no internet connection, no " +
+      "account needed - so short, direct requests work best, but feel free to just talk normally " +
+      "and I'll match what I can."
     );
   }
 
@@ -121,8 +143,18 @@ export class LocalRuleBasedAgent implements AiAgent {
     return {
       reply:
         `Scan complete - found ${all.length} code${all.length === 1 ? "" : "s"}:\n${lines.join("\n")}\n\n` +
-        `${this.repairVerdict(tools)}`,
+        `${this.clearVsRepairBreakdown(result)}\n\n` +
+        `Overall: ${this.repairVerdict(result)}\n\n` +
+        `Ask "explain <code>" or "tell me more" for full detail on any of these.`,
     };
+  }
+
+  private moreDetail(tools: AgentTools): string {
+    const result = tools.lastScanResult;
+    if (!result) return "Run a scan first (\"scan for faults\") and I'll go into detail on whatever it finds.";
+    const all = [...result.storedCodes, ...result.pendingCodes];
+    if (all.length === 0) return "Nothing to expand on - the last scan came back clean.";
+    return all.map((dtc) => this.explainCode(dtc.code)).join("\n\n---\n\n");
   }
 
   private shortSummary(dtc: DtcCode): string {
@@ -145,27 +177,75 @@ export class LocalRuleBasedAgent implements AiAgent {
     return (
       `${code}: ${description}\n\n` +
       `Common causes: ${advice.commonCauses.join(", ")}.\n\n` +
-      `${advice.guidance}`
+      `${advice.guidance}\n\n` +
+      `If you clear it: ${advice.clearingNote}`
     );
   }
 
-  private repairVerdict(tools: AgentTools): string {
-    const result = tools.lastScanResult;
+  private repairVerdict(result: DiagnosticScanResult | null): string {
     if (!result) return "Run a scan first (\"scan for faults\") and I'll give you a repair verdict.";
     const all = [...result.storedCodes, ...result.pendingCodes];
     if (all.length === 0) return "Nothing from the last scan suggests a repair is needed.";
     const urgencies = all.map((dtc) => adviseOnDtc(dtc.code)?.urgency ?? "medium");
     if (urgencies.includes("high")) {
       return (
-        "At least one code from the last scan is high-urgency - see that code's explanation " +
-        "above for specifics, but in general: if the check-engine light is flashing rather " +
-        "than steady, stop driving and get it inspected rather than continuing."
+        "at least one code is high-urgency - see that code's explanation for specifics, but " +
+        "in general: if the check-engine light is flashing rather than steady, stop driving " +
+        "and get it inspected rather than continuing."
       );
     }
     if (urgencies.includes("medium")) {
-      return "Nothing here looks like an emergency, but I'd get these checked in the next week or two rather than letting them sit.";
+      return "nothing here looks like an emergency, but I'd get these checked in the next week or two rather than letting them sit.";
     }
-    return "These are low-urgency - fine to mention at your next scheduled service rather than rushing in.";
+    return "these are low-urgency - fine to mention at your next scheduled service rather than rushing in.";
+  }
+
+  private clearVsRepairBreakdown(result: DiagnosticScanResult | null): string {
+    if (!result) {
+      return (
+        "Run a scan first (\"scan for faults\") and I'll break down which codes will likely " +
+        "just stay cleared versus which need an actual repair."
+      );
+    }
+    const all = [...result.storedCodes, ...result.pendingCodes];
+    if (all.length === 0) return "No codes from the last scan, so there's nothing to clear or repair.";
+
+    const groups: Record<"often-resolves" | "may-return" | "will-likely-return", string[]> = {
+      "often-resolves": [],
+      "may-return": [],
+      "will-likely-return": [],
+    };
+    const unknown: string[] = [];
+
+    for (const dtc of all) {
+      const advice: DtcAdvice | null = adviseOnDtc(dtc.code);
+      if (!advice) {
+        unknown.push(dtc.code);
+        continue;
+      }
+      groups[advice.clearingLikelihood].push(`${dtc.code} - ${advice.clearingNote}`);
+    }
+
+    const sections: string[] = [];
+    if (groups["often-resolves"].length) {
+      sections.push(
+        `Likely fine to just clear:\n${groups["often-resolves"].map((s) => `• ${s}`).join("\n")}`
+      );
+    }
+    if (groups["may-return"].length) {
+      sections.push(
+        `Could go either way - clear it and monitor:\n${groups["may-return"].map((s) => `• ${s}`).join("\n")}`
+      );
+    }
+    if (groups["will-likely-return"].length) {
+      sections.push(
+        `Needs an actual repair - clearing alone won't stick:\n${groups["will-likely-return"].map((s) => `• ${s}`).join("\n")}`
+      );
+    }
+    if (unknown.length) {
+      sections.push(`No public generic definition, so I can't say for: ${unknown.join(", ")}`);
+    }
+    return sections.join("\n\n");
   }
 
   private async createBackup(tools: AgentTools): Promise<AgentResponse> {
