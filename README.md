@@ -22,6 +22,7 @@ Stage 1/2/3 performance tune install workflow looks like.
 | Coding options catalogue (`src/data/modules.ts`) | **Sample data.** The kinds of options (mirror-fold-on-lock, PDC auto-off, seatbelt chime, etc.) mirror what real tools expose, but the actual byte-level mapping into a real control unit is proprietary to BMW (ISTA/PSdZData) and isn't public. See `src/data/README.md`. |
 | Gearbox/transmission (EGS) flashing (`src/services/flash`) | **Simulated.** The full pre-checks → backup → erase → write → verify workflow is real and complete, but it runs against a timed simulation, not a real control unit. See `src/services/flash/README.md` for why. |
 | Engine (DME) Stage 1/2/3 tuning (`src/services/flash`) | **Simulated, and intentionally so.** Real performance tuning rewrites fuel/ignition/boost tables and is dyno-calibrated per exact hardware combo - this app only describes what each stage conceptually changes and simulates the install workflow. It never ships or fabricates real tuning values; see `src/services/flash/README.md`. |
+| Importing your own tune/firmware file (Flash screen) | **Real file handling, simulated install.** You can pick a real file from your device (`expo-document-picker`); it's really copied into app storage and fingerprinted (`expo-crypto`/`expo-file-system`). But it still only runs through the *simulated* install workflow above - this app never gains a real ECU-write capability just because the file is real. |
 
 In short: **the transport layer is real, the BMW-specific data is not.** If
 you have your own verified coding definitions or licensed BMW firmware
@@ -82,3 +83,7 @@ native `react-native-ble-plx` module) - see the Expo docs for
   simulated workflow to a real one, that calibration should come from a
   tuner who has dyno-verified it against your car's exact hardware - not
   from a generic downloaded map.
+- Importing a real file on the Flash screen stages it in this app, but
+  doesn't make this app capable of writing it to a real vehicle - that step
+  still has to happen through whatever licensed tool/hardware produced the
+  file.

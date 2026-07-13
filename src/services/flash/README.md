@@ -36,11 +36,30 @@ that's safe to apply blind. For that reason this project only describes what
 each stage conceptually changes and simulates the install workflow - it
 never ships or invents real fuel/ignition/boost values.
 
+## Importing your own file
+
+`FlashService.importPackage()` lets a user pick a real file from their
+device (e.g. a tune exported from their own licensed tuning software or
+from a tuner) via `expo-document-picker`. The service copies it into the
+app's document storage, fingerprints it (`expo-crypto`, SHA-256 over the
+file's base64 contents - a duplicate/change-detection fingerprint for this
+app's own bookkeeping, not a claim of matching any OEM signature scheme),
+and stores it as an `ImportedFlashPackage` alongside the built-in samples in
+`listAvailablePackages()`.
+
+**Importing a real file does not add a real ECU-write capability.** It only
+lets the app catalogue and stage the file, and run it through the exact
+same simulated `startFlash()` state machine as the sample packages. Actually
+applying an imported file to a real vehicle still requires the security-
+access sequence and wired pass-thru hardware described above - that still
+has to happen in whatever licensed tool the file came from, not in this
+app. `FlashScreen` and the completion message on an imported package's
+flash job both say this explicitly.
+
 ## Extension point
 
 `FlashService` (see `src/types/services.ts`) is a plain interface. A real
-implementation would swap in a J2534 pass-thru driver and BMW-licensed
-firmware packages (or a licensed tuner's calibrated stage maps) in place of
-`SAMPLE_PACKAGES`, while keeping the same
-pre-checks/backup/erase/write/verify state machine the UI already expects
-via `FlashStepResult`.
+implementation would swap in a J2534 pass-thru driver for the actual write
+step in place of the simulated `startFlash()` loop, while keeping the same
+pre-checks/backup/erase/write/verify state machine and the same
+sample/imported package model the UI already expects.

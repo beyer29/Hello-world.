@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useBackups, useFlash, useModules } from "@/context/AppProviders";
 import { colors, spacing, typography } from "@/theme/theme";
@@ -16,6 +18,12 @@ import { ModulesStackParamList } from "@/navigation/RootNavigator";
 import { FlashJobStatus, FlashPackage } from "@/types";
 
 type FlashRouteProp = RouteProp<ModulesStackParamList, "Flash">;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const RUNNING_STATUSES: FlashJobStatus[] = [
   "pre-checks",
@@ -56,7 +64,15 @@ export default function FlashScreen() {
   const { moduleId } = route.params;
 
   const { modules } = useModules();
-  const { activeJob, progress, listPackages, startFlash, abort } = useFlash();
+  const {
+    activeJob,
+    progress,
+    listPackages,
+    importPackage,
+    deleteImportedPackage,
+    startFlash,
+    abort,
+  } = useFlash();
   const { createBackup } = useBackups();
 
   const module = modules.find((m) => m.id === moduleId);
@@ -68,26 +84,66 @@ export default function FlashScreen() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const refreshPackages = useCallback(async () => {
+    if (!moduleCode) return;
+    try {
+      setPackages(await listPackages(moduleCode));
+      setPackagesError(null);
+    } catch (err) {
+      setPackages([]);
+      setPackagesError(String(err));
+    }
+  }, [moduleCode, listPackages]);
 
   useEffect(() => {
-    if (!moduleCode) return;
-    let cancelled = false;
     setPackages(null);
-    setPackagesError(null);
-    listPackages(moduleCode)
-      .then((pkgs) => {
-        if (!cancelled) setPackages(pkgs);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setPackages([]);
-          setPackagesError(String(err));
-        }
+    refreshPackages();
+  }, [moduleCode, refreshPackages]);
+
+  const handleImport = useCallback(async () => {
+    if (!moduleCode) return;
+    setImportError(null);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [moduleCode, listPackages]);
+      if (result.canceled || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      setIsImporting(true);
+      await importPackage(moduleCode, {
+        uri: asset.uri,
+        name: asset.name,
+        sizeBytes: asset.size ?? 0,
+      });
+      await refreshPackages();
+    } catch (err) {
+      setImportError(String(err));
+    } finally {
+      setIsImporting(false);
+    }
+  }, [moduleCode, importPackage, refreshPackages]);
+
+  const handleDeleteImported = useCallback(
+    (pkg: Extract<FlashPackage, { source: "imported" }>) => {
+      Alert.alert("Delete imported file", `Remove "${pkg.name}" from this device?`, [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteImportedPackage(pkg.id);
+            setSelectedPackageId((current) => (current === pkg.id ? null : current));
+            await refreshPackages();
+          },
+        },
+      ]);
+    },
+    [deleteImportedPackage, refreshPackages]
+  );
 
   const selectedPackage = packages?.find((p) => p.id === selectedPackageId) ?? null;
 
@@ -161,6 +217,7 @@ export default function FlashScreen() {
           <View style={styles.packageList}>
             {packages.map((pkg) => {
               const selected = pkg.id === selectedPackageId;
+              const imported = pkg.source === "imported";
               return (
                 <Pressable
                   key={pkg.id}
@@ -178,13 +235,55 @@ export default function FlashScreen() {
                   <View style={styles.packageInfo}>
                     <Text style={styles.packageName}>{pkg.name}</Text>
                     <Text style={styles.packageDescription}>{pkg.description}</Text>
-                    <Text style={styles.packageSampleBadge}>Simulated package - not real firmware</Text>
+                    {imported ? (
+                      <Text style={styles.packageMeta}>
+                        {formatBytes(pkg.fileSizeBytes)} · imported{" "}
+                        {new Date(pkg.importedAt).toLocaleDateString()}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.packageSampleBadge}>
+                      {imported
+                        ? "Your file - install below is still simulated, not a real write"
+                        : "Simulated package - not real firmware"}
+                    </Text>
                   </View>
+                  {imported ? (
+                    <Pressable
+                      onPress={() => handleDeleteImported(pkg)}
+                      disabled={isRunning}
+                      hitSlop={8}
+                      style={styles.deleteImportedButton}
+                    >
+                      <Text style={styles.deleteImportedButtonLabel}>Delete</Text>
+                    </Pressable>
+                  ) : null}
                 </Pressable>
               );
             })}
           </View>
         )}
+
+        <Pressable
+          onPress={handleImport}
+          disabled={isImporting || isRunning || !moduleCode}
+          style={({ pressed }) => [
+            styles.importButton,
+            (isImporting || isRunning) && styles.buttonDisabled,
+            pressed && !(isImporting || isRunning) && styles.buttonPressed,
+          ]}
+        >
+          {isImporting ? (
+            <ActivityIndicator color={colors.accent} size="small" />
+          ) : (
+            <Text style={styles.importButtonLabel}>Import your own tune file...</Text>
+          )}
+        </Pressable>
+        <Text style={styles.importCaption}>
+          Bring a real file exported from your own licensed tuning software/tuner. This app
+          stages it and runs it through the same simulated install below - actually writing it to
+          a real vehicle still requires that tool's own hardware and security-access process.
+        </Text>
+        {importError ? <Text style={styles.errorText}>{importError}</Text> : null}
 
         <View style={styles.ackRow}>
           <View style={styles.ackTextBlock}>
@@ -390,6 +489,41 @@ const styles = StyleSheet.create({
   packageSampleBadge: {
     ...typography.caption,
     color: colors.warning,
+  },
+  packageMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  deleteImportedButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    marginLeft: spacing.sm,
+  },
+  deleteImportedButtonLabel: {
+    ...typography.caption,
+    color: colors.danger,
+    fontWeight: "600",
+  },
+  importButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  importButtonLabel: {
+    ...typography.body,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  importCaption: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
   },
   ackRow: {
     flexDirection: "row",

@@ -1,7 +1,13 @@
 import { CodingBackup, CodingSnapshotEntry } from "./backup";
-import { FlashJob, FlashPackage, FlashStepResult } from "./flash";
+import { FlashJob, FlashPackage, FlashStepResult, ImportedFlashPackage } from "./flash";
 import { ControlModule } from "./module";
 import { VinDecodeResult } from "./vehicle";
+
+export interface PickedFile {
+  uri: string;
+  name: string;
+  sizeBytes: number;
+}
 
 export interface VinDecoder {
   decode(vin: string): VinDecodeResult;
@@ -26,6 +32,19 @@ export interface BackupService {
 
 export interface FlashService {
   listAvailablePackages(moduleCode: string): Promise<FlashPackage[]>;
+  /**
+   * Stages a real file the user picked from their device against a module.
+   * This only catalogues the file and lets it flow through the same
+   * simulated install workflow as built-in sample packages - it does not
+   * grant the app a real ECU-write capability. See
+   * src/services/flash/README.md.
+   */
+  importPackage(
+    moduleCode: string,
+    file: PickedFile,
+    notes?: string
+  ): Promise<ImportedFlashPackage>;
+  deleteImportedPackage(packageId: string): Promise<void>;
   startFlash(
     moduleId: string,
     pkg: FlashPackage,

@@ -1,12 +1,18 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Crypto from "expo-crypto";
+import * as FileSystem from "expo-file-system";
 import {
   FlashJob,
   FlashJobStatus,
   FlashPackage,
   FlashService,
   FlashStepResult,
+  ImportedFlashPackage,
+  PickedFile,
+  SampleFlashPackage,
 } from "@/types";
 
-const SAMPLE_PACKAGES: Record<string, FlashPackage[]> = {
+const SAMPLE_PACKAGES: Record<string, SampleFlashPackage[]> = {
   EGS: [
     {
       id: "egs-demo-shift-map-v1",
@@ -14,7 +20,7 @@ const SAMPLE_PACKAGES: Record<string, FlashPackage[]> = {
       name: "Demo shift map v1 (simulated)",
       description:
         "Illustrates the flash workflow only - not a real transmission firmware image.",
-      isSample: true,
+      source: "sample",
     },
   ],
   DME: [
@@ -27,7 +33,7 @@ const SAMPLE_PACKAGES: Record<string, FlashPackage[]> = {
         "hardware, raising torque/power within the stock turbo and fuel system's " +
         "margin - no hardware changes assumed. Not a real calibrated tune; real Stage " +
         "1 maps are dyno-derived per engine/hardware combo by a tuner.",
-      isSample: true,
+      source: "sample",
     },
     {
       id: "dme-demo-stage2-v1",
@@ -37,7 +43,7 @@ const SAMPLE_PACKAGES: Record<string, FlashPackage[]> = {
         "Illustrative only. Conceptually: a remap paired with supporting hardware " +
         "(e.g. intake, downpipe/exhaust, intercooler) that raises boost/airflow limits " +
         "beyond what Stage 1 assumes. Not a real calibrated tune.",
-      isSample: true,
+      source: "sample",
     },
     {
       id: "dme-demo-stage3-v1",
@@ -48,10 +54,13 @@ const SAMPLE_PACKAGES: Record<string, FlashPackage[]> = {
         "hardware changes (upgraded turbo(s), fuel system, sometimes internals). Not a " +
         "real calibrated tune - real Stage 3 packages require a tuner to calibrate " +
         "against the exact hardware installed, on a dyno, to avoid engine damage.",
-      isSample: true,
+      source: "sample",
     },
   ],
 };
+
+const IMPORTED_STORAGE_KEY = "bimmercoder:importedTunes";
+const TUNES_DIR = `${FileSystem.documentDirectory ?? ""}tunes/`;
 
 const STEP_SEQUENCE: { status: FlashJobStatus; label: string; durationMs: number }[] = [
   { status: "pre-checks", label: "Verifying VIN, voltage, and module compatibility", durationMs: 900 },
@@ -64,13 +73,70 @@ const STEP_SEQUENCE: { status: FlashJobStatus; label: string; durationMs: number
 /**
  * Simulates the end-to-end flash workflow (pre-checks, backup, erase, write,
  * verify) so the UI/UX is real and complete, without executing an actual
- * transmission control unit flash. See README.md in this directory for why.
+ * control-unit flash - even for real files staged via `importPackage`. See
+ * README.md in this directory for why.
  */
 export class SimulatedFlashService implements FlashService {
   private aborted = new Set<string>();
+  private importedCache: ImportedFlashPackage[] | null = null;
 
   async listAvailablePackages(moduleCode: string): Promise<FlashPackage[]> {
-    return SAMPLE_PACKAGES[moduleCode] ?? [];
+    const sample = SAMPLE_PACKAGES[moduleCode] ?? [];
+    const imported = (await this.loadImported()).filter((p) => p.moduleCode === moduleCode);
+    return [...sample, ...imported];
+  }
+
+  async importPackage(
+    moduleCode: string,
+    file: PickedFile,
+    notes?: string
+  ): Promise<ImportedFlashPackage> {
+    await FileSystem.makeDirectoryAsync(TUNES_DIR, { intermediates: true }).catch(() => {});
+
+    const id = `imported-${moduleCode}-${Date.now()}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const localUri = `${TUNES_DIR}${id}-${safeName}`;
+
+    await FileSystem.copyAsync({ from: file.uri, to: localUri });
+
+    const info = await FileSystem.getInfoAsync(localUri, { size: true });
+    const fileSizeBytes = (info.exists && "size" in info ? info.size : file.sizeBytes) ?? file.sizeBytes;
+
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const fingerprint = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64);
+
+    const pkg: ImportedFlashPackage = {
+      id,
+      moduleCode,
+      name: file.name,
+      description: notes?.trim()
+        ? notes.trim()
+        : "Imported file. Staged for the simulated install workflow only - actually writing " +
+          "this to a real vehicle still requires your own licensed flashing tool and hardware.",
+      source: "imported",
+      fileName: file.name,
+      fileSizeBytes,
+      fingerprint,
+      importedAt: new Date().toISOString(),
+      localUri,
+      notes: notes?.trim() || undefined,
+    };
+
+    const all = await this.loadImported();
+    all.push(pkg);
+    await this.persistImported(all);
+    return pkg;
+  }
+
+  async deleteImportedPackage(packageId: string): Promise<void> {
+    const all = await this.loadImported();
+    const target = all.find((p) => p.id === packageId);
+    if (target) {
+      await FileSystem.deleteAsync(target.localUri, { idempotent: true }).catch(() => {});
+    }
+    await this.persistImported(all.filter((p) => p.id !== packageId));
   }
 
   async startFlash(
@@ -105,12 +171,33 @@ export class SimulatedFlashService implements FlashService {
 
     job.status = "complete";
     job.finishedAt = new Date().toISOString();
-    onProgress({ status: "complete", label: "Flash complete", progress: 1 });
+    onProgress({
+      status: "complete",
+      label: "Flash complete (simulated)",
+      progress: 1,
+      message:
+        pkg.source === "imported"
+          ? "No real control unit was written. To actually apply this file to a vehicle, use " +
+            "the licensed flashing tool/hardware it came from."
+          : undefined,
+    });
     return job;
   }
 
   async abort(jobId: string): Promise<void> {
     this.aborted.add(jobId);
+  }
+
+  private async loadImported(): Promise<ImportedFlashPackage[]> {
+    if (this.importedCache) return this.importedCache;
+    const stored = await AsyncStorage.getItem(IMPORTED_STORAGE_KEY);
+    this.importedCache = stored ? JSON.parse(stored) : [];
+    return this.importedCache!;
+  }
+
+  private async persistImported(packages: ImportedFlashPackage[]): Promise<void> {
+    this.importedCache = packages;
+    await AsyncStorage.setItem(IMPORTED_STORAGE_KEY, JSON.stringify(packages));
   }
 }
 

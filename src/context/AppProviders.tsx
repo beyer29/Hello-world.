@@ -17,9 +17,11 @@ import {
   FlashPackage,
   FlashService,
   FlashStepResult,
+  ImportedFlashPackage,
   ObdAdapter,
   ObdConnectionState,
   ObdDeviceInfo,
+  PickedFile,
 } from "@/types";
 import { createObdAdapter } from "@/services/obd";
 import { decodeVin } from "@/services/vin";
@@ -103,6 +105,8 @@ interface FlashContextValue {
   activeJob: FlashJob | null;
   progress: FlashStepResult | null;
   listPackages: (moduleCode: string) => Promise<FlashPackage[]>;
+  importPackage: (moduleCode: string, file: PickedFile, notes?: string) => Promise<ImportedFlashPackage>;
+  deleteImportedPackage: (packageId: string) => Promise<void>;
   startFlash: (moduleId: string, pkg: FlashPackage) => Promise<FlashJob>;
   abort: () => Promise<void>;
 }
@@ -259,6 +263,17 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     [services]
   );
 
+  const importPackage = useCallback(
+    (moduleCode: string, file: PickedFile, notes?: string): Promise<ImportedFlashPackage> =>
+      services.flash.importPackage(moduleCode, file, notes),
+    [services]
+  );
+
+  const deleteImportedPackage = useCallback(
+    (packageId: string) => services.flash.deleteImportedPackage(packageId),
+    [services]
+  );
+
   const startFlash = useCallback(
     async (moduleId: string, pkg: FlashPackage) => {
       setFlashProgress(null);
@@ -289,8 +304,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   );
 
   const flashValue = useMemo<FlashContextValue>(
-    () => ({ activeJob, progress: flashProgress, listPackages, startFlash, abort }),
-    [activeJob, flashProgress, listPackages, startFlash, abort]
+    () => ({
+      activeJob,
+      progress: flashProgress,
+      listPackages,
+      importPackage,
+      deleteImportedPackage,
+      startFlash,
+      abort,
+    }),
+    [activeJob, flashProgress, listPackages, importPackage, deleteImportedPackage, startFlash, abort]
   );
 
   return (
