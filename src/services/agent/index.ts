@@ -1,0 +1,1 @@
+export { LocalRuleBasedAgent } from "./localAgent";

@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "The Coder",
+    "slug": "the-coder",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "thecoder",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.thecoder",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings.",
+        "NSBluetoothPeripheralUsageDescription": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle to read and code control module settings."
+      }
+    },
+    "android": {
+      "package": "com.example.thecoder",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "The Coder connects to a Bluetooth OBD-II adapter plugged into your vehicle."
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
+    ]
+  }
+}
