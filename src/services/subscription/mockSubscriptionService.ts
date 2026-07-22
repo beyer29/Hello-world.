@@ -1,7 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SubscriptionPlan, SubscriptionProduct, SubscriptionService, SubscriptionStatus } from "@/types";
-
-const STORAGE_KEY = "thecoder:subscription";
+import { readSignedStatus, writeSignedStatus } from "./secureStatusStore";
 
 const PRODUCTS: SubscriptionProduct[] = [
   { plan: "monthly", productId: "premium_monthly", priceDisplay: "$9.99/month" },
@@ -17,14 +15,18 @@ const FREE_STATUS: SubscriptionStatus = { tier: "free", activePlan: null, expire
  * Connect/Play Console product configured yet. See README.md in this
  * directory for what's needed to go live with
  * `RevenueCatSubscriptionService` instead.
+ *
+ * Status is persisted via `secureStatusStore` (signed, Keychain/Keystore-
+ * backed) rather than plain AsyncStorage, specifically so a hand-edited
+ * local value can't grant free premium access - see that module's
+ * comments for exactly what this does and doesn't protect against.
  */
 export class MockSubscriptionService implements SubscriptionService {
   private status: SubscriptionStatus | null = null;
 
   async getStatus(): Promise<SubscriptionStatus> {
     if (this.status) return this.status;
-    const stored = await AsyncStorage.getItem(STORAGE_KEY);
-    this.status = stored ? (JSON.parse(stored) as SubscriptionStatus) : FREE_STATUS;
+    this.status = (await readSignedStatus()) ?? FREE_STATUS;
     return this.status;
   }
 
@@ -55,6 +57,6 @@ export class MockSubscriptionService implements SubscriptionService {
 
   private async persist(status: SubscriptionStatus): Promise<void> {
     this.status = status;
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(status));
+    await writeSignedStatus(status);
   }
 }
